@@ -4,6 +4,8 @@ import pathfinderPkg from 'mineflayer-pathfinder';
 const { goals } = pathfinderPkg;
 
 let currentWindow = null;
+let lastChestPos = null;
+const chestRegistry = {};
 
 function formatItems(items) {
     if (!items || items.length === 0) return "empty";
@@ -65,6 +67,7 @@ export function registerInventoryTools(factory, getBot) {
         try {
             const chest = await bot.openChest(block);
             currentWindow = chest;
+            lastChestPos = pos;
             const container = chest.containerItems();
             const botItems = chest.items();
             let text = `Opened ${block.name} at (${x}, ${y}, ${z})`;
@@ -104,6 +107,7 @@ export function registerInventoryTools(factory, getBot) {
         try {
             const chest = await bot.openChest(block);
             currentWindow = chest;
+            lastChestPos = pos;
             const container = chest.containerItems();
             const botItems = chest.items();
             let text = `Opened ${block.name} at (${x}, ${y}, ${z})`;
@@ -217,6 +221,65 @@ export function registerInventoryTools(factory, getBot) {
             }
         }
         return factory.createResponse("Batch withdraw results:\n" + results.join('\n'));
+    });
+
+    factory.registerTool("label-chest", "Assign a label to the currently open chest for later use", {
+        label: z.string().describe("Label for this chest (e.g. 'building', 'redstone')")
+    }, async ({ label }) => {
+        if (!currentWindow) return factory.createResponse("No chest is currently open");
+        if (!lastChestPos) return factory.createResponse("No chest position recorded");
+        const key = label.toLowerCase().replace(/\s+/g, '-');
+        chestRegistry[key] = { x: lastChestPos.x, y: lastChestPos.y, z: lastChestPos.z };
+        return factory.createResponse(`Chest at (${lastChestPos.x}, ${lastChestPos.y}, ${lastChestPos.z}) labeled as '${key}'`);
+    });
+
+    factory.registerTool("open-labeled-chest", "Go to and open a chest by its label", {
+        label: z.string().describe("Label of the chest (set via label-chest)")
+    }, async ({ label }) => {
+        const bot = getBot();
+        if (!bot) return factory.createResponse("Bot not connected");
+        const key = label.toLowerCase().replace(/\s+/g, '-');
+        const entry = chestRegistry[key];
+        if (!entry) return factory.createResponse(`No chest labeled '${key}'. Available: ${Object.keys(chestRegistry).join(', ') || 'none'}`);
+        const pos = new Vec3(entry.x, entry.y, entry.z).floored();
+        const block = bot.blockAt(pos);
+        if (!block || !block.name.includes('chest')) return factory.createResponse(`No chest found at (${entry.x}, ${entry.y}, ${entry.z}) for label '${key}'`);
+        if (currentWindow) {
+            try { currentWindow.close(); } catch (_) {}
+            currentWindow = null;
+        }
+        try {
+            const goal = new goals.GoalNear(pos.x, pos.y, pos.z, 3);
+            await bot.pathfinder.goto(goal);
+        } catch (_) {}
+        try {
+            const chest = await bot.openChest(block);
+            currentWindow = chest;
+            lastChestPos = pos;
+            const container = chest.containerItems();
+            const botItems = chest.items();
+            let text = `Opened ${block.name} '${key}' at (${entry.x}, ${entry.y}, ${entry.z})`;
+            const adjacent = [[1,0],[0,1],[-1,0],[0,-1]];
+            const neighbor = adjacent.map(([dx, dz]) => bot.blockAt(pos.offset(dx, 0, dz))).find(b => b && b.name.includes('chest'));
+            if (neighbor) text += ` [double chest with (${neighbor.position.x}, ${neighbor.position.y}, ${neighbor.position.z})]`;
+            text += `\n\nContainer items (${container.length}):\n`;
+            if (container.length === 0) text += "  empty\n";
+            else container.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
+            text += `\nBot inventory (${botItems.length}):\n`;
+            if (botItems.length === 0) text += "  empty\n";
+            else botItems.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
+            return factory.createResponse(text);
+        } catch (err) {
+            return factory.createResponse(`Failed to open chest: ${err.message}`);
+        }
+    });
+
+    factory.registerTool("list-chests", "List all labeled chests", {}, async () => {
+        const keys = Object.keys(chestRegistry);
+        if (keys.length === 0) return factory.createResponse("No chests labeled yet. Use label-chest to assign labels.");
+        let text = "Labeled chests:\n";
+        keys.forEach(k => { text += `  ${k} → (${chestRegistry[k].x}, ${chestRegistry[k].y}, ${chestRegistry[k].z})\n`; });
+        return factory.createResponse(text);
     });
 
     factory.registerTool("close-chest", "Close the currently open chest", {}, async () => {
