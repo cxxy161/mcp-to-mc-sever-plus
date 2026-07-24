@@ -8,6 +8,13 @@ function formatItems(items) {
     return items.map(i => `${i.name} (x${i.count}) slot ${i.slot}`).join(', ');
 }
 
+function smartMatch(items, query) {
+    const q = query.toLowerCase();
+    const exact = items.find(i => i.name === q);
+    if (exact) return exact;
+    return items.find(i => i.name.includes(q));
+}
+
 export function registerInventoryTools(factory, getBot) {
     factory.registerTool("list-inventory", "List all items in the bot's inventory", {}, async () => {
         const bot = getBot();
@@ -25,7 +32,7 @@ export function registerInventoryTools(factory, getBot) {
         const bot = getBot();
         if (!bot) return factory.createResponse("Bot not connected");
         const items = bot.inventory.items();
-        const item = items.find((item) => item.name.includes(nameOrType.toLowerCase()));
+        const item = smartMatch(items, nameOrType);
         if (item) return factory.createResponse(`Found ${item.count} ${item.name} in inventory (slot ${item.slot})`);
         return factory.createResponse(`Couldn't find any item matching '${nameOrType}' in inventory`);
     });
@@ -37,7 +44,7 @@ export function registerInventoryTools(factory, getBot) {
         const bot = getBot();
         if (!bot) return factory.createResponse("Bot not connected");
         const items = bot.inventory.items();
-        const item = items.find((item) => item.name.includes(itemName.toLowerCase()));
+        const item = smartMatch(items, itemName);
         if (!item) return factory.createResponse(`Couldn't find any item matching '${itemName}' in inventory`);
         await bot.equip(item, destination);
         return factory.createResponse(`Equipped ${item.name} to ${destination}`);
@@ -90,7 +97,7 @@ export function registerInventoryTools(factory, getBot) {
     }, async ({ itemName, count }) => {
         if (!currentWindow) return factory.createResponse("No chest is currently open. Use open-chest first.");
         const container = currentWindow.containerItems();
-        const item = container.find(i => i.name.includes(itemName.toLowerCase()));
+        const item = smartMatch(container, itemName);
         if (!item) return factory.createResponse(`No '${itemName}' found in chest`);
         const toTake = Math.min(count, item.count);
         try {
@@ -109,7 +116,7 @@ export function registerInventoryTools(factory, getBot) {
         const bot = getBot();
         if (!bot) return factory.createResponse("Bot not connected");
         const items = bot.inventory.items();
-        const item = items.find(i => i.name.includes(itemName.toLowerCase()));
+        const item = smartMatch(items, itemName);
         if (!item) return factory.createResponse(`No '${itemName}' found in bot inventory`);
         const toDeposit = Math.min(count, item.count);
         try {
