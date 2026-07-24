@@ -1,5 +1,7 @@
 import { z } from "zod";
 import { Vec3 } from 'vec3';
+import pathfinderPkg from 'mineflayer-pathfinder';
+const { goals } = pathfinderPkg;
 
 let currentWindow = null;
 
@@ -60,6 +62,45 @@ export function registerInventoryTools(factory, getBot) {
         const pos = new Vec3(x, y, z).floored();
         const block = bot.blockAt(pos);
         if (!block || !block.name.includes('chest')) return factory.createResponse(`No chest found at (${x}, ${y}, ${z})`);
+        try {
+            const chest = await bot.openChest(block);
+            currentWindow = chest;
+            const container = chest.containerItems();
+            const botItems = chest.items();
+            let text = `Opened ${block.name} at (${x}, ${y}, ${z})`;
+            const adjacent = [[1,0],[0,1],[-1,0],[0,-1]];
+            const neighbor = adjacent.map(([dx, dz]) => bot.blockAt(pos.offset(dx, 0, dz))).find(b => b && b.name.includes('chest'));
+            if (neighbor) text += ` [double chest with (${neighbor.position.x}, ${neighbor.position.y}, ${neighbor.position.z})]`;
+            text += `\n\nContainer items (${container.length}):\n`;
+            if (container.length === 0) text += "  empty\n";
+            else container.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
+            text += `\nBot inventory (${botItems.length}):\n`;
+            if (botItems.length === 0) text += "  empty\n";
+            else botItems.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
+            return factory.createResponse(text);
+        } catch (err) {
+            return factory.createResponse(`Failed to open chest: ${err.message}`);
+        }
+    });
+
+    factory.registerTool("goto-chest", "Move to and open a chest at the specified position, clearing previous blocked chest if needed", {
+        x: z.coerce.number().describe("X coordinate"),
+        y: z.coerce.number().describe("Y coordinate"),
+        z: z.coerce.number().describe("Z coordinate"),
+    }, async ({ x, y, z }) => {
+        const bot = getBot();
+        if (!bot) return factory.createResponse("Bot not connected");
+        const pos = new Vec3(x, y, z).floored();
+        const block = bot.blockAt(pos);
+        if (!block || !block.name.includes('chest')) return factory.createResponse(`No chest found at (${x}, ${y}, ${z})`);
+        if (currentWindow) {
+            try { currentWindow.close(); } catch (_) {}
+            currentWindow = null;
+        }
+        try {
+            const goal = new goals.GoalNear(pos.x, pos.y, pos.z, 3);
+            await bot.pathfinder.goto(goal);
+        } catch (_) {}
         try {
             const chest = await bot.openChest(block);
             currentWindow = chest;
