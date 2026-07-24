@@ -191,10 +191,8 @@ export function registerInventoryTools(factory, getBot) {
         count: z.coerce.number().int().positive().describe("Number of items to deposit"),
     }, async ({ itemName, count }) => {
         if (!currentWindow) return factory.createResponse("No chest is currently open. Use open-chest first.");
-        const bot = getBot();
-        if (!bot) return factory.createResponse("Bot not connected");
-        const items = bot.inventory.items();
-        const item = smartMatch(items, itemName);
+        const inv = currentWindow.items();
+        const item = smartMatch(inv, itemName);
         if (!item) return factory.createResponse(`No '${itemName}' found in bot inventory`);
         const toDeposit = Math.min(count, item.count);
         try {
@@ -212,11 +210,9 @@ export function registerInventoryTools(factory, getBot) {
         })).describe("List of items to deposit")
     }, async ({ items }) => {
         if (!currentWindow) return factory.createResponse("No chest is currently open. Use open-chest first.");
-        const bot = getBot();
-        if (!bot) return factory.createResponse("Bot not connected");
         const results = [];
         for (const { itemName, count } of items) {
-            const inv = bot.inventory.items();
+            const inv = currentWindow.items();
             const item = smartMatch(inv, itemName);
             if (!item) { results.push(`${itemName}: not found in inventory`); continue; }
             const toDeposit = Math.min(count, item.count);

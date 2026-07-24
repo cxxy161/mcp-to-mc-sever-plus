@@ -48,6 +48,12 @@ export class BotConnection {
             const mcData = minecraftData(bot.version);
             const defaultMove = new Movements(bot, mcData);
             bot.pathfinder.setMovements(defaultMove);
+            if (bot.currentWindow) {
+                try { bot.closeWindow(bot.currentWindow); } catch (_) { }
+            }
+            if (bot._client) {
+                try { bot._client.write('close_window', { windowId: 0 }); } catch (_) { }
+            }
             this.callbacks.onLog('info', `Bot connected successfully. Username: ${this.config.username}, Server: ${this.config.host}:${this.config.port}`);
         });
         bot.on('chat', (username, message) => {
