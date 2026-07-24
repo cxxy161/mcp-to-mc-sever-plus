@@ -33,6 +33,7 @@ export class BotConnection {
             host: this.config.host,
             port: this.config.port,
             username: this.config.username,
+            brand: 'fabric',
             plugins: { pathfinder },
         };
         this.bot = mineflayer.createBot(botOptions);
