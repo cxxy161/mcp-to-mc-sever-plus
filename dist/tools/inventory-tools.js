@@ -65,8 +65,11 @@ export function registerInventoryTools(factory, getBot) {
             currentWindow = chest;
             const container = chest.containerItems();
             const botItems = chest.items();
-            let text = `Opened ${block.name} at (${x}, ${y}, ${z})\n\n`;
-            text += `Container items (${container.length}):\n`;
+            let text = `Opened ${block.name} at (${x}, ${y}, ${z})`;
+            const adjacent = [[1,0],[0,1],[-1,0],[0,-1]];
+            const neighbor = adjacent.map(([dx, dz]) => bot.blockAt(pos.offset(dx, 0, dz))).find(b => b && b.name.includes('chest'));
+            if (neighbor) text += ` [double chest with (${neighbor.position.x}, ${neighbor.position.y}, ${neighbor.position.z})]`;
+            text += `\n\nContainer items (${container.length}):\n`;
             if (container.length === 0) text += "  empty\n";
             else container.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
             text += `\nBot inventory (${botItems.length}):\n`;
