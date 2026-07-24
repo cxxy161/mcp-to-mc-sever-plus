@@ -6,3 +6,6 @@ if [ -z "$PID" ]; then
 fi
 kill "$PID"
 echo "MCP server stopped (PID: $PID)"
+
+# If managed by opencode, it will auto-restart.
+# To permanently stop, remove it from opencode.jsonc.
