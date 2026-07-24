@@ -48,7 +48,6 @@ export class BotConnection {
             const mcData = minecraftData(bot.version);
             const defaultMove = new Movements(bot, mcData);
             bot.pathfinder.setMovements(defaultMove);
-            bot.chat('LLM-powered bot ready to receive instructions!');
             this.callbacks.onLog('info', `Bot connected successfully. Username: ${this.config.username}, Server: ${this.config.host}:${this.config.port}`);
         });
         bot.on('chat', (username, message) => {
