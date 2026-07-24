@@ -19,6 +19,26 @@ function smartMatch(items, query) {
     return items.find(i => i.name.includes(q));
 }
 
+function readNearbySigns(pos, bot) {
+    const dirs = [
+        ['north', [0, 0, -1]], ['south', [0, 0, 1]],
+        ['west', [-1, 0, 0]], ['east', [1, 0, 0]],
+        ['above', [0, 1, 0]], ['below', [0, -1, 0]]
+    ];
+    const signs = [];
+    for (const [name, [dx, dy, dz]] of dirs) {
+        const block = bot.blockAt(pos.offset(dx, dy, dz));
+        if (block && block.name.includes('sign')) {
+            const text = block.getSignText ? block.getSignText() : [''];
+            const front = (text[0] || '').trim();
+            const back = (text[1] || '').trim();
+            const lines = [front, back].filter(Boolean).join(' | ');
+            if (lines) signs.push({ direction: name, text: lines });
+        }
+    }
+    return signs;
+}
+
 export function registerInventoryTools(factory, getBot) {
     factory.registerTool("list-inventory", "List all items in the bot's inventory", {}, async () => {
         const bot = getBot();
@@ -74,6 +94,11 @@ export function registerInventoryTools(factory, getBot) {
             const adjacent = [[1,0],[0,1],[-1,0],[0,-1]];
             const neighbor = adjacent.map(([dx, dz]) => bot.blockAt(pos.offset(dx, 0, dz))).find(b => b && b.name.includes('chest'));
             if (neighbor) text += ` [double chest with (${neighbor.position.x}, ${neighbor.position.y}, ${neighbor.position.z})]`;
+            const signs = readNearbySigns(pos, bot);
+            if (signs.length > 0) {
+                text += `\nSigns nearby:\n`;
+                signs.forEach(s => { text += `  [${s.direction}] ${s.text}\n`; });
+            }
             text += `\n\nContainer items (${container.length}):\n`;
             if (container.length === 0) text += "  empty\n";
             else container.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
@@ -114,6 +139,11 @@ export function registerInventoryTools(factory, getBot) {
             const adjacent = [[1,0],[0,1],[-1,0],[0,-1]];
             const neighbor = adjacent.map(([dx, dz]) => bot.blockAt(pos.offset(dx, 0, dz))).find(b => b && b.name.includes('chest'));
             if (neighbor) text += ` [double chest with (${neighbor.position.x}, ${neighbor.position.y}, ${neighbor.position.z})]`;
+            const signs = readNearbySigns(pos, bot);
+            if (signs.length > 0) {
+                text += `\nSigns nearby:\n`;
+                signs.forEach(s => { text += `  [${s.direction}] ${s.text}\n`; });
+            }
             text += `\n\nContainer items (${container.length}):\n`;
             if (container.length === 0) text += "  empty\n";
             else container.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
@@ -262,6 +292,11 @@ export function registerInventoryTools(factory, getBot) {
             const adjacent = [[1,0],[0,1],[-1,0],[0,-1]];
             const neighbor = adjacent.map(([dx, dz]) => bot.blockAt(pos.offset(dx, 0, dz))).find(b => b && b.name.includes('chest'));
             if (neighbor) text += ` [double chest with (${neighbor.position.x}, ${neighbor.position.y}, ${neighbor.position.z})]`;
+            const signs = readNearbySigns(pos, bot);
+            if (signs.length > 0) {
+                text += `\nSigns nearby:\n`;
+                signs.forEach(s => { text += `  [${s.direction}] ${s.text}\n`; });
+            }
             text += `\n\nContainer items (${container.length}):\n`;
             if (container.length === 0) text += "  empty\n";
             else container.forEach(i => { text += `  - ${i.name} (x${i.count}) slot ${i.slot}\n`; });
