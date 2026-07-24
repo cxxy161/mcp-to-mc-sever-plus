@@ -84,6 +84,7 @@ export function registerInventoryTools(factory, getBot) {
         const pos = new Vec3(x, y, z).floored();
         const block = bot.blockAt(pos);
         if (!block || !block.name.includes('chest')) return factory.createResponse(`No chest found at (${x}, ${y}, ${z})`);
+        if (bot.entity.position.distanceTo(pos) > 5) return factory.createResponse("Chest too far. Use goto-chest to walk there first.");
         try {
             const chest = await bot.openChest(block);
             currentWindow = chest;
