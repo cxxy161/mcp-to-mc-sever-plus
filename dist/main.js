@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { setupStdioFiltering } from './stdio-filter.js';
@@ -30,7 +31,6 @@ async function main() {
         onLog: log,
         onChatMessage: (username, message) => messageStore.addMessage(username, message)
     });
-    connection.connect();
     const server = new McpServer({
         name: "minecraft-mcp-server",
         version: "2.0.4"
@@ -46,6 +46,29 @@ async function main() {
     registerGameStateTools(factory, getBot);
     registerCraftingTools(factory, getBot);
     registerFurnaceTools(factory, getBot);
+
+    server.tool("join-server", "Connect the bot to a Minecraft server", {
+        host: z.string().describe("Server hostname or IP"),
+        port: z.coerce.number().int().positive().describe("Server port"),
+        username: z.string().optional().describe("Bot username (default: current)")
+    }, async (args) => {
+        try {
+            const parsed = z.object({
+                host: z.string(),
+                port: z.coerce.number().int().positive(),
+                username: z.string().optional()
+            }).parse(args);
+            const currentConfig = connection.getConfig();
+            const botUsername = parsed.username || currentConfig.username;
+            connection.connectTo(parsed.host, parsed.port, botUsername);
+            return { content: [{ type: "text", text: `Connecting to ${parsed.host}:${parsed.port} as ${botUsername}...` }] };
+        }
+        catch (err) {
+            const msg = err instanceof Error ? err.message : String(err);
+            return { content: [{ type: "text", text: `Failed: ${msg}` }], isError: true };
+        }
+    });
+
     process.stdin.on('end', () => {
         connection.cleanup();
         log('info', 'MCP Client has disconnected. Shutting down...');

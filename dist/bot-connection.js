@@ -113,26 +113,31 @@ export class BotConnection {
             this.connect();
         }, this.reconnectDelayMs);
     }
+    connectTo(host, port, username) {
+        if (this.reconnectTimer) {
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = null;
+        }
+        this.isReconnecting = false;
+        if (this.bot) {
+            try {
+                this.bot.removeAllListeners();
+                this.bot.quit('Switching server...');
+            }
+            catch (_) { }
+            this.bot = null;
+        }
+        this.config.host = host;
+        this.config.port = port;
+        this.config.username = username;
+        this.state = 'disconnected';
+        this.connect();
+    }
+
     async checkConnectionAndReconnect() {
         const currentState = this.state;
         if (currentState === 'disconnected') {
-            this.attemptReconnect();
-            const maxWaitTime = this.reconnectDelayMs + 5000;
-            const pollInterval = 100;
-            const startTime = Date.now();
-            while (Date.now() - startTime < maxWaitTime) {
-                if (this.state === 'connected') {
-                    return { connected: true };
-                }
-                await new Promise(resolve => setTimeout(resolve, pollInterval));
-            }
-            const errorMessage = `Cannot connect to Minecraft server at ${this.config.host}:${this.config.port}\n\n` +
-                `Please ensure:\n` +
-                `1. Minecraft server is running on ${this.config.host}:${this.config.port}\n` +
-                `2. Server is accessible from this machine\n` +
-                `3. Server version is compatible (latest supported: ${SUPPORTED_MINECRAFT_VERSION})\n\n` +
-                `For setup instructions, visit: https://github.com/yuniko-software/minecraft-mcp-server`;
-            return { connected: false, message: errorMessage };
+            return { connected: false, message: 'Bot is not connected. Use join-server tool first.' };
         }
         if (currentState === 'connecting') {
             return { connected: false, message: 'Bot is connecting to the Minecraft server. Please wait a moment and try again.' };
