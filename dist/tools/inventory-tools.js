@@ -127,6 +127,54 @@ export function registerInventoryTools(factory, getBot) {
         }
     });
 
+    factory.registerTool("deposit-items", "Deposit multiple items from bot inventory into the open chest in batch", {
+        items: z.array(z.object({
+            itemName: z.string().describe("Name of the item to deposit"),
+            count: z.coerce.number().int().positive().describe("Number of items to deposit")
+        })).describe("List of items to deposit")
+    }, async ({ items }) => {
+        if (!currentWindow) return factory.createResponse("No chest is currently open. Use open-chest first.");
+        const bot = getBot();
+        if (!bot) return factory.createResponse("Bot not connected");
+        const results = [];
+        for (const { itemName, count } of items) {
+            const inv = bot.inventory.items();
+            const item = smartMatch(inv, itemName);
+            if (!item) { results.push(`${itemName}: not found in inventory`); continue; }
+            const toDeposit = Math.min(count, item.count);
+            try {
+                await currentWindow.deposit(item.type, null, toDeposit);
+                results.push(`${item.name}: deposited ${toDeposit}`);
+            } catch (err) {
+                results.push(`${item.name}: failed - ${err.message}`);
+            }
+        }
+        return factory.createResponse("Batch deposit results:\n" + results.join('\n'));
+    });
+
+    factory.registerTool("withdraw-items", "Withdraw multiple items from the open chest into bot inventory in batch", {
+        items: z.array(z.object({
+            itemName: z.string().describe("Name of the item to withdraw"),
+            count: z.coerce.number().int().positive().describe("Number of items to withdraw")
+        })).describe("List of items to withdraw")
+    }, async ({ items }) => {
+        if (!currentWindow) return factory.createResponse("No chest is currently open. Use open-chest first.");
+        const results = [];
+        for (const { itemName, count } of items) {
+            const container = currentWindow.containerItems();
+            const item = smartMatch(container, itemName);
+            if (!item) { results.push(`${itemName}: not found in chest`); continue; }
+            const toTake = Math.min(count, item.count);
+            try {
+                await currentWindow.withdraw(item.type, null, toTake);
+                results.push(`${item.name}: withdrew ${toTake}`);
+            } catch (err) {
+                results.push(`${item.name}: failed - ${err.message}`);
+            }
+        }
+        return factory.createResponse("Batch withdraw results:\n" + results.join('\n'));
+    });
+
     factory.registerTool("close-chest", "Close the currently open chest", {}, async () => {
         if (!currentWindow) return factory.createResponse("No chest is currently open");
         try {
