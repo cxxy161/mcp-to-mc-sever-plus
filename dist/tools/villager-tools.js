@@ -6,47 +6,26 @@ const { goals } = pathfinderPkg;
 let currentVillager = null;
 let currentVillagerPos = null;
 
-const PROFESSION_NAMES = {
-    'minecraft:none': 'none',
-    'minecraft:nitwit': 'nitwit',
-    'minecraft:armorer': 'armorer',
-    'minecraft:butcher': 'butcher',
-    'minecraft:cartographer': 'cartographer',
-    'minecraft:cleric': 'cleric',
-    'minecraft:farmer': 'farmer',
-    'minecraft:fisherman': 'fisherman',
-    'minecraft:fletcher': 'fletcher',
-    'minecraft:leatherworker': 'leatherworker',
-    'minecraft:librarian': 'librarian',
-    'minecraft:mason': 'mason',
-    'minecraft:shepherd': 'shepherd',
-    'minecraft:toolsmith': 'toolsmith',
-    'minecraft:weaponsmith': 'weaponsmith'
+const PROFESSION_BY_ID = {
+    0: 'none', 1: 'armorer', 2: 'butcher', 3: 'cartographer',
+    4: 'cleric', 5: 'farmer', 6: 'fisherman', 7: 'fletcher',
+    8: 'leatherworker', 9: 'librarian', 10: 'mason', 11: 'nitwit',
+    12: 'shepherd', 13: 'toolsmith', 14: 'weaponsmith'
 };
-
-function cleanProfession(raw) {
-    if (!raw || raw === 'unknown') return 'unknown';
-    const key = raw.includes(':') ? raw : `minecraft:${raw}`;
-    return PROFESSION_NAMES[key] || raw.replace('minecraft:', '');
-}
 
 function getVillagerData(entity) {
     try {
         const meta = entity.metadata;
         if (!meta) return { profession: 'unknown', level: 0 };
-        const data = meta[17];
+        const data = meta[18];
         if (!data) return { profession: 'unknown', level: 0 };
         if (typeof data === 'object' && data !== null) {
-            let prof = data.profession || data.villagerData?.profession || 'unknown';
-            let level = data.level ?? data.villagerData?.level ?? 0;
-            if (prof === 'unknown' && data.villagerData) {
-                prof = typeof data.villagerData === 'object' ? (data.villagerData.profession || 'unknown') : 'unknown';
-                level = typeof data.villagerData === 'object' ? (data.villagerData.level ?? 0) : 0;
-            }
-            return { profession: cleanProfession(prof), level };
-        }
-        if (typeof data === 'string' || typeof data === 'number') {
-            return { profession: cleanProfession(String(data)), level: 0 };
+            const profId = data.villagerProfession ?? data.profession ?? data.villagerData?.profession;
+            const prof = profId != null
+                ? (PROFESSION_BY_ID[typeof profId === 'number' ? profId : Number(profId)] ?? 'unknown')
+                : 'unknown';
+            const level = data.level ?? data.villagerData?.level ?? 0;
+            return { profession: prof, level };
         }
     }
     catch (_) { }
