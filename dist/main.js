@@ -63,7 +63,8 @@ async function main() {
             const currentConfig = connection.getConfig();
             const botUsername = parsed.username || currentConfig.username;
             connection.connectTo(parsed.host, parsed.port, botUsername);
-            return { content: [{ type: "text", text: `Connecting to ${parsed.host}:${parsed.port} as ${botUsername}...` }] };
+            await connection.waitForConnection(10000);
+            return { content: [{ type: "text", text: `Connected to ${parsed.host}:${parsed.port} as ${botUsername}` }] };
         }
         catch (err) {
             const msg = err instanceof Error ? err.message : String(err);

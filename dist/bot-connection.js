@@ -11,6 +11,8 @@ export class BotConnection {
     isReconnecting = false;
     reconnectTimer = null;
     reconnectDelayMs;
+    _connectResolve = null;
+    _connectReject = null;
     constructor(config, callbacks, reconnectDelayMs = 2000) {
         this.config = config;
         this.callbacks = callbacks;
@@ -39,11 +41,20 @@ export class BotConnection {
         this.bot = mineflayer.createBot(botOptions);
         this.state = 'connecting';
         this.isReconnecting = false;
+        this._connectPromise = new Promise((resolve, reject) => {
+            this._connectResolve = resolve;
+            this._connectReject = reject;
+        });
         this.registerEventHandlers(this.bot);
     }
     registerEventHandlers(bot) {
         bot.once('spawn', async () => {
             this.state = 'connected';
+            if (this._connectResolve) {
+                this._connectResolve();
+                this._connectResolve = null;
+                this._connectReject = null;
+            }
             this.callbacks.onLog('info', 'Bot spawned in world');
             const mcData = minecraftData(bot.version);
             const defaultMove = new Movements(bot, mcData);
@@ -63,6 +74,11 @@ export class BotConnection {
         });
         bot.on('kicked', (reason) => {
             this.callbacks.onLog('error', `Bot was kicked from server: ${this.formatError(reason)}`);
+            if (this.state === 'connecting' && this._connectReject) {
+                this._connectReject(new Error(`Kicked from server: ${this.formatError(reason)}`));
+                this._connectResolve = null;
+                this._connectReject = null;
+            }
             this.state = 'disconnected';
             bot.quit();
         });
@@ -71,6 +87,11 @@ export class BotConnection {
             const errorMsg = err instanceof Error ? err.message : String(err);
             this.callbacks.onLog('error', `Bot error [${errorCode}]: ${errorMsg}`);
             if (errorCode === 'ECONNREFUSED' || errorCode === 'ETIMEDOUT') {
+                if (this.state === 'connecting' && this._connectReject) {
+                    this._connectReject(new Error(errorMsg));
+                    this._connectResolve = null;
+                    this._connectReject = null;
+                }
                 this.state = 'disconnected';
             }
         });
@@ -79,6 +100,11 @@ export class BotConnection {
         });
         bot.on('end', (reason) => {
             this.callbacks.onLog('info', `Bot disconnected: ${this.formatError(reason)}`);
+            if (this.state === 'connecting' && this._connectReject) {
+                this._connectReject(new Error(`Disconnected while connecting: ${this.formatError(reason)}`));
+                this._connectResolve = null;
+                this._connectReject = null;
+            }
             if (this.state === 'connected') {
                 this.state = 'disconnected';
             }
@@ -125,6 +151,9 @@ export class BotConnection {
             this.reconnectTimer = null;
         }
         this.isReconnecting = false;
+        this._connectResolve = null;
+        this._connectReject = null;
+        this._connectPromise = null;
         if (this.bot) {
             try {
                 this.bot.removeAllListeners();
@@ -138,6 +167,15 @@ export class BotConnection {
         this.config.username = username;
         this.state = 'disconnected';
         this.connect();
+    }
+
+    async waitForConnection(timeoutMs = 10000) {
+        if (this.state === 'connected') return;
+        if (!this._connectPromise) throw new Error('No connection in progress');
+        const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error(`Connection timed out after ${timeoutMs}ms`)), timeoutMs);
+        });
+        await Promise.race([this._connectPromise, timeoutPromise]);
     }
 
     async checkConnectionAndReconnect() {
