@@ -32,14 +32,21 @@ function cleanProfession(raw) {
 
 function getVillagerData(entity) {
     try {
-        const meta = entity.entityMetadata;
+        const meta = entity.metadata;
         if (!meta) return { profession: 'unknown', level: 0 };
         const data = meta[17];
         if (!data) return { profession: 'unknown', level: 0 };
         if (typeof data === 'object' && data !== null) {
-            const prof = data.profession || data.villagerData?.profession || 'unknown';
-            const level = data.level ?? data.villagerData?.level ?? 0;
+            let prof = data.profession || data.villagerData?.profession || 'unknown';
+            let level = data.level ?? data.villagerData?.level ?? 0;
+            if (prof === 'unknown' && data.villagerData) {
+                prof = typeof data.villagerData === 'object' ? (data.villagerData.profession || 'unknown') : 'unknown';
+                level = typeof data.villagerData === 'object' ? (data.villagerData.level ?? 0) : 0;
+            }
             return { profession: cleanProfession(prof), level };
+        }
+        if (typeof data === 'string' || typeof data === 'number') {
+            return { profession: cleanProfession(String(data)), level: 0 };
         }
     }
     catch (_) { }
@@ -56,10 +63,12 @@ function formatTrade(trade, index) {
     const i1 = `${trade.inputItem1.count}× ${trade.inputItem1.name}`;
     const i2 = trade.inputItem2 ? ` + ${trade.inputItem2.count}× ${trade.inputItem2.name}` : '';
     const out = `${trade.outputItem.count}× ${trade.outputItem.name}`;
-    const used = trade.nbTrades ?? trade.toolUses ?? 0;
-    const remaining = trade.maxTrades - used;
-    const locked = trade.disabled ? ' [LOCKED]' : '';
-    return `  ${index}. [${i1}${i2} → ${out}] remaining: ${remaining}/${trade.maxTrades}${locked}`;
+    const used = trade.nbTradeUses ?? 0;
+    const maxTrades = trade.maximumNbTradeUses;
+    const remaining = maxTrades != null ? maxTrades - used : '∞';
+    const locked = trade.tradeDisabled ? ' [LOCKED]' : '';
+    const display = maxTrades != null ? `${remaining}/${maxTrades}` : `∞`;
+    return `  ${index}. [${i1}${i2} → ${out}] remaining: ${display}${locked}`;
 }
 
 function formatTrades(trades) {
@@ -75,11 +84,11 @@ function formatInventory(bot) {
     return text;
 }
 
-function formatVillagerInfo(entity) {
+function formatVillagerInfo(bot, entity) {
     const data = getVillagerData(entity);
     const pos = entity.position.floored();
-    const dist = entity.entity.position ? Math.floor(entity.entity.position.distanceTo(entity.position)) : '?';
-    return `  ${data.profession} (Lv. ${data.level}) at (${pos.x}, ${pos.y}, ${pos.z})`;
+    const dist = bot?.entity?.position ? Math.floor(bot.entity.position.distanceTo(entity.position)) : '?';
+    return `  ${data.profession} (Lv. ${data.level}) at (${pos.x}, ${pos.y}, ${pos.z}) - ${dist}m away`;
 }
 
 export function registerVillagerTools(factory, getBot) {
@@ -192,14 +201,16 @@ export function registerVillagerTools(factory, getBot) {
             return factory.createResponse(`Trade index ${tradeIndex} out of range. There are ${trades.length} trades available (0-${trades.length - 1}).`);
         }
         const trade = trades[tradeIndex];
-        if (trade.disabled) {
+        if (trade.tradeDisabled) {
             return factory.createResponse(`Trade ${tradeIndex} is currently locked/disabled.`);
         }
-        const used = trade.nbTrades ?? trade.toolUses ?? 0;
-        const maxAffordable = trade.maxTrades - used;
+        const used = trade.nbTradeUses ?? 0;
+        const maxTrades = trade.maximumNbTradeUses ?? Infinity;
+        const maxAffordable = maxTrades - used;
         const toExecute = Math.min(count, maxAffordable);
-        if (toExecute <= 0) {
-            return factory.createResponse(`Trade ${tradeIndex} has no remaining uses (max ${trade.maxTrades}).`);
+        if (toExecute <= 0 || !isFinite(toExecute)) {
+            const maxDisplay = trade.maximumNbTradeUses != null ? trade.maximumNbTradeUses : '∞';
+            return factory.createResponse(`Trade ${tradeIndex} has no remaining uses (max ${maxDisplay}).`);
         }
         const tradeDesc = `${trade.inputItem1.count}× ${trade.inputItem1.name}${trade.inputItem2 ? ` + ${trade.inputItem2.count}× ${trade.inputItem2.name}` : ''} → ${trade.outputItem.count}× ${trade.outputItem.name}`;
         let executed = 0;
@@ -222,8 +233,11 @@ export function registerVillagerTools(factory, getBot) {
             msg += `\nNote: only ${executed} of ${toExecute} completed successfully. ${lastError || ''}`;
         }
         else if (executed < count) {
-            msg += `\nTrade exhausted after ${executed} use(s) (max ${trade.maxTrades}).`;
+            const maxDisplay = trade.maximumNbTradeUses != null ? trade.maximumNbTradeUses : '∞';
+            msg += `\nTrade exhausted after ${executed} use(s) (max ${maxDisplay}).`;
         }
+        const bot = getBot();
+        if (bot) msg += '\n\n' + formatInventory(bot);
         return factory.createResponse(msg);
     });
 
