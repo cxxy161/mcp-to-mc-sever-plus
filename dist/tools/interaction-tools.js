@@ -233,4 +233,50 @@ export function registerInteractionTools(factory, getBot) {
         text += `Position:  (${pos.x}, ${pos.y}, ${pos.z})\n`;
         return factory.createResponse(text);
     });
+
+    factory.registerTool("collect-items", "Walk near dropped items to pick them up, optionally filtered by name", {
+        itemName: z.string().optional().describe("Item name filter (e.g. 'wheat', 'wheat_seeds'). Omit to collect all."),
+        radius: z.coerce.number().finite().optional().describe("Search radius (default: 16)"),
+        maxCount: z.coerce.number().int().positive().optional().describe("Max items to collect (default: 64)")
+    }, async ({ itemName, radius = 16, maxCount = 64 }) => {
+        const bot = getBot();
+        if (!bot) return factory.createResponse("Bot not connected");
+        const dropped = [];
+        for (const entity of Object.values(bot.entities)) {
+            if (entity === bot.entity) continue;
+            if (entity.name !== 'item' && entity.name !== 'Item' && entity.name !== 'item_stack') continue;
+            const dist = bot.entity.position.distanceTo(entity.position);
+            if (dist > radius) continue;
+            const item = entity.getDroppedItem();
+            if (!item) continue;
+            if (itemName && !item.name.includes(itemName.toLowerCase())) continue;
+            dropped.push({ entity, item, dist });
+        }
+        if (dropped.length === 0) {
+            return factory.createResponse(`No dropped items${itemName ? ` matching '${itemName}'` : ''} found within ${radius} blocks`);
+        }
+        dropped.sort((a, b) => a.dist - b.dist);
+        const invBefore = bot.inventory.items().reduce((acc, i) => { acc[i.name] = (acc[i.name] || 0) + i.count; return acc; }, {});
+        let collected = 0;
+        for (const { entity, item } of dropped) {
+            if (collected >= maxCount) break;
+            const pos = entity.position.floored();
+            if (bot.entity.position.distanceTo(entity.position) > 1) {
+                await goNear(bot, pos, 1);
+            }
+            collected++;
+            await new Promise(r => setTimeout(r, 100));
+        }
+        const invAfter = bot.inventory.items().reduce((acc, i) => { acc[i.name] = (acc[i.name] || 0) + i.count; return acc; }, {});
+        const changes = [];
+        for (const name of new Set([...Object.keys(invBefore), ...Object.keys(invAfter)])) {
+            const diff = (invAfter[name] || 0) - (invBefore[name] || 0);
+            if (diff > 0) changes.push(`+${diff} ${name}`);
+        }
+        let msg = `Collected ${collected} dropped item(s)`;
+        if (itemName) msg += ` matching '${itemName}'`;
+        if (collected < dropped.length) msg += ` (${dropped.length} found, capped at ${maxCount})`;
+        if (changes.length > 0) msg += `\nItems gained: ${changes.join(', ')}`;
+        return factory.createResponse(msg);
+    });
 }

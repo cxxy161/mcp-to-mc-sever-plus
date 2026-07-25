@@ -28,29 +28,6 @@ async function goNear(bot, pos, range = 2) {
     catch (_) { }
 }
 
-async function collectNearbyItems(bot, radius = 4) {
-    const items = [];
-    for (const entity of Object.values(bot.entities)) {
-        if (entity === bot.entity) continue;
-        if (entity.name === 'item' || entity.name === 'Item' || entity.type === 'object') {
-            const dist = bot.entity.position.distanceTo(entity.position);
-            if (dist <= radius) items.push(entity);
-        }
-    }
-    if (items.length === 0) return 0;
-    items.sort((a, b) => bot.entity.position.distanceTo(a.position) - bot.entity.position.distanceTo(b.position));
-    let collected = 0;
-    for (const item of items) {
-        const pos = item.position.floored();
-        const dist = bot.entity.position.distanceTo(item.position);
-        if (dist < 1) continue;
-        await goNear(bot, pos, 1);
-        collected++;
-        await new Promise(r => setTimeout(r, 150));
-    }
-    return collected;
-}
-
 export function registerBlockTools(factory, getBot) {
     factory.registerTool("place-block", "Place a block at the specified position", {
         x: z.coerce.number().describe("X coordinate"),
@@ -178,19 +155,10 @@ export function registerBlockTools(factory, getBot) {
                 failed++;
             }
         }
-        const collected = await collectNearbyItems(bot, radius + 4);
-        const invAfter = bot.inventory.items().reduce((acc, i) => { acc[i.name] = (acc[i.name] || 0) + i.count; return acc; }, {});
-        const changes = [];
-        for (const name of new Set([...Object.keys(invBefore), ...Object.keys(invAfter)])) {
-            const diff = (invAfter[name] || 0) - (invBefore[name] || 0);
-            if (diff > 0) changes.push(`+${diff} ${name}`);
-        }
         let msg = `Dug ${dug} ${blockType}`;
         if (skipped > 0) msg += `, skipped ${skipped}`;
         if (failed > 0) msg += `, ${failed} failed`;
-        msg += `\nFound ${positions.length} total, processed ${dug + skipped + failed}`;
-        if (changes.length > 0) msg += `\nItems gained: ${changes.join(', ')}`;
-        if (collected > 0) msg += `\nWalked near ${collected} dropped item(s) for pickup`;
+        msg += `\nUse collect-items to pick up drops`;
         return factory.createResponse(msg);
     });
 
