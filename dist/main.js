@@ -17,6 +17,7 @@ import { registerFlightTools } from './tools/flight-tools.js';
 import { registerGameStateTools } from './tools/gamestate-tools.js';
 import { registerCraftingTools } from './tools/crafting-tools.js';
 import { registerFurnaceTools } from './tools/furnace-tools.js';
+import { registerVillagerTools } from './tools/villager-tools.js';
 setupStdioFiltering();
 process.on('unhandledRejection', (reason) => {
     log('error', `Unhandled rejection: ${reason}`);
@@ -46,6 +47,7 @@ async function main() {
     registerGameStateTools(factory, getBot);
     registerCraftingTools(factory, getBot);
     registerFurnaceTools(factory, getBot);
+    registerVillagerTools(factory, getBot);
 
     server.tool("join-server", "Connect the bot to a Minecraft server", {
         host: z.string().describe("Server hostname or IP"),
